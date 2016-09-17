@@ -1,7 +1,7 @@
 import Foundation
 
 func makeId(length: Int = 10) -> String {
-    var result = "'"
+    var result = ""
     for _ in 0 ..< length {
         let value = arc4random_uniform(62)
         switch value {
