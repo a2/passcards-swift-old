@@ -2,8 +2,9 @@ import Vapor
 import Foundation
 import Routing
 import HTTP
+import MongoKitten
 
-class WalletCollection: RouteCollection, EmptyInitializable {
+class WalletCollection: RouteCollection {
     typealias Wrapped = HTTP.Responder
 
     static let iso8601DateFormatter: DateFormatter = {
@@ -13,7 +14,12 @@ class WalletCollection: RouteCollection, EmptyInitializable {
         return dateFormatter
     }()
 
-    required init() {
+    let passes: MongoKitten.Collection
+    let installations: MongoKitten.Collection
+
+    init(passes: MongoKitten.Collection, installations: MongoKitten.Collection) {
+        self.passes = passes
+        self.installations = installations
     }
 
     func addRegisterDevice<Builder: RouteBuilder>(to builder: Builder) where Builder.Value == Wrapped {
@@ -29,12 +35,11 @@ class WalletCollection: RouteCollection, EmptyInitializable {
                 return Response(status: .badRequest)
             }
 
-            let pass: Pass
+            let pass: Document
             do {
-                let localPass = try Pass.query()
-                    .filter("passTypeIdentifier", passTypeIdentifier)
-                    .filter("serialNumber", serialNumber)
-                    .first()
+                let query: Query = "passTypeIdentifier" == passTypeIdentifier && "serialNumber" == serialNumber
+                let localPass = try self.passes.findOne(matching: query)
+
                 if let localPass = localPass {
                     pass = localPass
                 } else {
@@ -42,31 +47,37 @@ class WalletCollection: RouteCollection, EmptyInitializable {
                 }
             }
 
-            guard let authorization = request.headers["Authorization"], authorization == "ApplePass \(pass.authenticationToken)" else {
+            guard let authorization = request.headers["Authorization"],
+                let authenticationToken = pass["authenticationToken"].stringValue,
+                authorization == "ApplePass \(authenticationToken)"
+            else {
                 return Response(status: .unauthorized)
             }
 
-            let installation: Installation
-            do {
-                let localInstallation = try Installation.query()
-                    .filter("deviceLibraryIdentifier", deviceLibraryIdentifier)
-                    .filter("passId", pass.id!)
-                    .first()
-                if let localInstallation = localInstallation {
-                    installation = localInstallation
-                } else {
-                    installation = Installation()
-                    installation.passId = pass.id!
-                    installation.deviceLibraryIdentifier = deviceLibraryIdentifier
-                }
+            let query: Query = "deviceLibraryIdentifier" == deviceLibraryIdentifier && "passId" == pass["_id"]
+            let created: Bool
+            var installation: Document
+
+            if let localInstallation = try self.installations.findOne(matching: query) {
+                created = false
+                installation = localInstallation
+            } else {
+                created = true
+                installation = [
+                    "deviceLibraryIdentifier": ~deviceLibraryIdentifier,
+                    "passId": ~pass["_id"],
+                ]
             }
 
-            installation.deviceToken = pushToken
+            installation["deviceToken"] = ~pushToken
 
-            let existed = installation.id != nil
-            try installation.save()
-
-            return Response(status: existed ? .noContent : .created)
+            if created {
+                try self.installations.insert(installation)
+                return Response(status: .created)
+            } else {
+                try self.installations.update(matching: query, to: installation)
+                return Response(status: .ok)
+            }
         }
     }
 
@@ -78,29 +89,44 @@ class WalletCollection: RouteCollection, EmptyInitializable {
                 throw TypeSafeRoutingError.missingParameter
             }
 
-            var query = try Installation.query()
-                .filter("deviceLibraryIdentifier", deviceLibraryIdentifier)
-                .union(Pass.self, localKey: "passId")
-                .filter(Pass.self, "passTypeIdentifier", passTypeIdentifier)
-
+            var passParameters: Document = ["passes.passTypeIdentifier": ~passTypeIdentifier]
             if let passesUpdatedSinceString = request.parameters["passesUpdatedSince"]?.string, let passesUpdatedSince = WalletCollection.iso8601DateFormatter.date(from: passesUpdatedSinceString) {
-                query = try query.filter(Pass.self, "updatedAt", passesUpdatedSince)
+                passParameters["passes.updatedAt"] = ~passesUpdatedSince
             }
+
+            let cursor = try self.installations.aggregate(pipeline: [
+                [
+                    "$match": ["deviceLibraryIdentifier": ~deviceLibraryIdentifier],
+                ],
+                [
+                    "$lookup": [
+                        "from": ~self.passes.name,
+                        "localField": "passId",
+                        "foreignField": "_id",
+                        "as": "passes",
+                    ],
+                ],
+                [
+                    "$match": ~passParameters,
+                ],
+            ])
 
             var serialNumbers = [String]()
             var lastUpdated: Date?
 
-            for installation in try query.all() {
-                if let pass = try installation.pass().get() {
-                    serialNumbers.append(pass.serialNumber)
+            for installation in cursor {
+                if let pass = installation["passes"].document.arrayValue.first {
+                    serialNumbers.append(pass["serialNumber"].string)
 
-                    switch lastUpdated {
-                    case .some(let value) where value < pass.updatedAt:
-                        lastUpdated = pass.updatedAt
-                    case .none:
-                        lastUpdated = pass.updatedAt
-                    default:
-                        break
+                    if let updatedAt = pass["updatedAt"].dateValue {
+                        switch lastUpdated {
+                        case .some(let value) where value < updatedAt:
+                            lastUpdated = updatedAt
+                        case .none:
+                            lastUpdated = updatedAt
+                        default:
+                            break
+                        }
                     }
                 }
             }
@@ -124,12 +150,11 @@ class WalletCollection: RouteCollection, EmptyInitializable {
                 throw TypeSafeRoutingError.missingParameter
             }
 
-            let pass: Pass
+            let pass: Document
             do {
-                let localPass = try Pass.query()
-                    .filter("passTypeIdentifier", passTypeIdentifier)
-                    .filter("serialNumber", serialNumber)
-                    .first()
+                let query: Query = "passTypeIdentifier" == passTypeIdentifier && "serialNumber" == serialNumber
+                let localPass = try self.passes.findOne(matching: query)
+
                 if let localPass = localPass {
                     pass = localPass
                 } else {
@@ -137,13 +162,17 @@ class WalletCollection: RouteCollection, EmptyInitializable {
                 }
             }
 
-            guard let authorization = request.headers["Authorization"], authorization == "ApplePass \(pass.authenticationToken)" else {
+            guard let authorization = request.headers["Authorization"],
+                let authenticationToken = pass["authenticationToken"].stringValue,
+                authorization == "ApplePass \(authenticationToken)"
+            else {
                 return Response(status: .unauthorized)
             }
 
+            let updatedAt = pass["updatedAt"].dateValue ?? Date()
             if let ifModifiedSinceString = request.headers["If-Modified-Since"]?.string,
                 let ifModifiedSince = RFC1123.shared.formatter.date(from: ifModifiedSinceString),
-                pass.updatedAt.timeIntervalSince(ifModifiedSince) < 1 {
+                updatedAt.timeIntervalSince(ifModifiedSince) < 1 {
 
                 return Response(status: .notModified)
             }
@@ -151,16 +180,16 @@ class WalletCollection: RouteCollection, EmptyInitializable {
             let body: Body
             let status: Status
 
-            if pass.data.isEmpty {
+            if case .binary(_, let data) = pass["data"], !data.isEmpty {
+                body = .data(data)
+                status = .ok
+            } else {
                 body = .data([])
                 status = .noContent
-            } else {
-                body = .data(pass.data)
-                status = .ok
             }
 
             let headers: [HeaderKey: String] = [
-                "Last-Modified": RFC1123.shared.formatter.string(from: pass.updatedAt),
+                "Last-Modified": RFC1123.shared.formatter.string(from: updatedAt),
                 "Content-Type": "application/vnd.apple.pkpass",
             ]
             return Response(status: status, headers: headers, body: body)
@@ -176,12 +205,11 @@ class WalletCollection: RouteCollection, EmptyInitializable {
                 throw TypeSafeRoutingError.missingParameter
             }
 
-            let pass: Pass
+            let pass: Document
             do {
-                let localPass = try Pass.query()
-                    .filter("passTypeIdentifier", passTypeIdentifier)
-                    .filter("serialNumber", serialNumber)
-                    .first()
+                let query: Query = "passTypeIdentifier" == passTypeIdentifier && "serialNumber" == serialNumber
+                let localPass = try self.passes.findOne(matching: query)
+
                 if let localPass = localPass {
                     pass = localPass
                 } else {
@@ -189,26 +217,21 @@ class WalletCollection: RouteCollection, EmptyInitializable {
                 }
             }
 
-            guard let authorization = request.headers["Authorization"], authorization == "ApplePass \(pass.authenticationToken)" else {
+            guard let authorization = request.headers["Authorization"],
+                let authenticationToken = pass["authenticationToken"].stringValue,
+                authorization == "ApplePass \(authenticationToken)"
+            else {
                 return Response(status: .unauthorized)
             }
 
-            let installation: Installation
-            do {
-                let localInstallation = try Installation.query()
-                    .filter("deviceLibraryIdentifier", deviceLibraryIdentifier)
-                    .filter("passId", pass.id!)
-                    .first()
-                if let localInstallation = localInstallation {
-                    installation = localInstallation
-                } else {
-                    return Response(status: .notFound)
-                }
+            let query: Query = "deviceLibraryIdentifier" == deviceLibraryIdentifier && "passId" == pass["_id"]
+
+            if try self.installations.findOne(matching: query) != nil {
+                try self.installations.remove(matching: query)
+                return Response(status: .ok)
+            } else {
+                return Response(status: .notFound)
             }
-
-            try installation.delete()
-
-            return Response(status: .ok)
         }
     }
 
