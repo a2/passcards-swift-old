@@ -1,4 +1,21 @@
 import Foundation
+import MongoKitten
+
+let rfc1123DateFormatter: DateFormatter = {
+    let dateFormatter = DateFormatter()
+    dateFormatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss 'GMT'"
+    dateFormatter.locale = Locale(identifier: "en_US")
+    dateFormatter.timeZone = TimeZone(abbreviation: "GMT")
+    return dateFormatter
+}()
+
+let iso8601DateFormatter: DateFormatter = {
+    let dateFormatter = DateFormatter()
+    dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
+    dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+    return dateFormatter
+}()
+
 
 func makeId(length: Int = 10) -> String {
     var result = ""
@@ -17,4 +34,19 @@ func makeId(length: Int = 10) -> String {
     }
 
     return result
+}
+
+func parseVanityId(from fileName: String) -> String? {
+    guard fileName.lowercased().hasSuffix(".pkpass"),
+        let extensionIndex = fileName.characters.index(of: "."),
+        fileName[extensionIndex ..< fileName.endIndex].lowercased() == ".pkpass"
+    else {
+        return nil
+    }
+
+    return fileName[fileName.startIndex ..< extensionIndex]
+}
+
+func findPass(withVanityId vanityId: String) throws -> Document? {
+    return try passes.findOne(matching: "vanityId" == vanityId)
 }
