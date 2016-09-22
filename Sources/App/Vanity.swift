@@ -58,7 +58,7 @@ private func getPass(request: RouterRequest, response: RouterResponse, next: @es
     response.headers["Content-Type"] = "application/vnd.apple.pkpass"
 
     if let updatedAt = pass["updatedAt"].dateValue {
-        response.headers["Last-Modified"] = rfc1123DateFormatter.string(from: updatedAt)
+        response.headers["Last-Modified"] = rfc2616DateFormatter.string(from: updatedAt)
     }
 
     try response.send(data: Data(data)).end()

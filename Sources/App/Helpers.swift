@@ -1,7 +1,7 @@
 import Foundation
 import MongoKitten
 
-let rfc1123DateFormatter: DateFormatter = {
+let rfc2616DateFormatter: DateFormatter = {
     let dateFormatter = DateFormatter()
     dateFormatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss 'GMT'"
     dateFormatter.locale = Locale(identifier: "en_US")

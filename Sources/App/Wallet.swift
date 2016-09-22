@@ -179,7 +179,7 @@ private func getPassLatestVersion(request: RouterRequest, response: RouterRespon
 
     let updatedAt = pass["updatedAt"].dateValue ?? Date()
     if let ifModifiedSinceString = request.headers["If-Modified-Since"],
-        let ifModifiedSince = rfc1123DateFormatter.date(from: ifModifiedSinceString),
+        let ifModifiedSince = rfc2616DateFormatter.date(from: ifModifiedSinceString),
         updatedAt.timeIntervalSince(ifModifiedSince) < 1 {
 
         try response.status(.notModified).end()
@@ -187,7 +187,7 @@ private func getPassLatestVersion(request: RouterRequest, response: RouterRespon
     }
 
     response.headers["Content-Type"] = "application/vnd.apple.pkpass"
-    response.headers["Last-Modified"] = rfc1123DateFormatter.string(from: updatedAt)
+    response.headers["Last-Modified"] = rfc2616DateFormatter.string(from: updatedAt)
 
     if case .binary(_, let bytes) = pass["data"], !bytes.isEmpty {
         try response.send(data: Data(bytes)).end()
