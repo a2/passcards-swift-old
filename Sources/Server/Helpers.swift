@@ -1,4 +1,5 @@
 import Foundation
+import Kitura
 import MongoKitten
 
 let rfc2616DateFormatter: DateFormatter = {
@@ -47,6 +48,32 @@ func parseVanityId(from fileName: String) -> String? {
     return fileName[fileName.startIndex ..< extensionIndex]
 }
 
-func findPass(withVanityId vanityId: String) throws -> Document? {
-    return try passes.findOne(matching: "vanityId" == vanityId)
+func findValue(in parts: [Part], byName name: String) -> ParsedBody? {
+    for part in parts {
+        if part.name == name {
+            return part.body
+        }
+    }
+
+    return nil
+}
+
+func findString(in parts: [Part], byName name: String) -> String? {
+    return findValue(in: parts, byName: name).flatMap { value in
+        if case .text(let string) = value {
+            return string
+        } else {
+            return nil
+        }
+    }
+}
+
+func findData(in parts: [Part], byName name: String) -> Data? {
+    return findValue(in: parts, byName: name).flatMap { value in
+        if case .raw(let data) = value {
+            return data
+        } else {
+            return nil
+        }
+    }
 }

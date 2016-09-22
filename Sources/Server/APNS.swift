@@ -1,6 +1,6 @@
 import Foundation
 
-private class APNSURLSessionDelegate: NSObject, URLSessionDelegate {
+class APNSURLSessionDelegate: NSObject, URLSessionDelegate {
     let identity: SecIdentity
 
     init(identity: SecIdentity) {
@@ -19,12 +19,12 @@ private class APNSURLSessionDelegate: NSObject, URLSessionDelegate {
     }
 }
 
-class APNS {
-    private let session: URLSession
-    private let sessionDelegate: APNSURLSessionDelegate
-    private var baseURL: URL
+public class APNS {
+    let session: URLSession
+    let sessionDelegate: APNSURLSessionDelegate
+    var baseURL: URL
 
-    init(identity: SecIdentity, options: Options = Options()) {
+    public init(identity: SecIdentity, options: Options = Options()) {
         self.baseURL = options.baseURL
         self.sessionDelegate = APNSURLSessionDelegate(identity: identity)
         self.session = URLSession(configuration: options.sessionConfiguration, delegate: self.sessionDelegate, delegateQueue: nil)
@@ -56,7 +56,7 @@ class APNS {
         return (identity as! SecIdentity)
     }
 
-    convenience init?(certificateURL: URL, passphrase: String?, options: Options = Options()) {
+    public convenience init?(certificateURL: URL, passphrase: String?, options: Options = Options()) {
         guard let identity = APNS.identity(for: certificateURL, passphrase: passphrase) else {
             return nil
         }
@@ -65,27 +65,9 @@ class APNS {
     }
 
     @discardableResult
-    func send(notification: Notification, to deviceToken: String, shouldBeginRequest: Bool = true, completionHandler: @escaping (Result<Response>) -> Void = { _ in }) -> URLSessionTask {
+    public func send(notification: Notification, to deviceToken: String, shouldBeginRequest: Bool = true, completionHandler: @escaping (Result<Response>) -> Void = { _ in }) -> URLSessionTask {
         let url = baseURL.appendingPathComponent(deviceToken)
-        var request = URLRequest(url: url)
-        request.httpBody = notification.payload
-        request.httpMethod = "POST"
-
-        if let topic = notification.topic {
-            request.addValue(topic, forHTTPHeaderField: "apns-topic")
-        }
-
-        if let priority = notification.priority {
-            request.addValue(String(priority.rawValue), forHTTPHeaderField: "apns-priority")
-        }
-
-        if let id = notification.id {
-            request.addValue(id.uuidString, forHTTPHeaderField: "apns-id")
-        }
-
-        if let expirationDate = notification.expirationDate {
-            request.addValue(String(Int(expirationDate.timeIntervalSince1970)), forHTTPHeaderField: "apns-expiration")
-        }
+        let request = notification.urlRequest(with: url)
 
         let task = session.dataTask(with: request) { data, response, error in
             if let data = data {
@@ -120,9 +102,9 @@ class APNS {
 }
 
 extension APNS {
-    typealias Result<T> = () throws -> T
+    public typealias Result<T> = () throws -> T
 
-    enum NotificationPriority {
+    public enum NotificationPriority {
         case normal, high
 
         var rawValue: Int {
@@ -135,31 +117,59 @@ extension APNS {
         }
     }
 
-    struct Notification {
-        var payload: Data
-        var priority: NotificationPriority?
-        var id: UUID?
-        var expirationDate: Date?
-        var topic: String?
+    public struct Notification {
+        public var payload: Data
+        public var priority: NotificationPriority?
+        public var id: UUID?
+        public var expirationDate: Date?
+        public var topic: String?
 
-        init(payload: Data) {
+        public init(payload: Data, priority: NotificationPriority? = nil, id: UUID? = nil, expirationDate: Date? = nil, topic: String? = nil) {
             self.payload = payload
+            self.priority = priority
+            self.id = id
+            self.expirationDate = expirationDate
+            self.topic = topic
+        }
+
+        public func urlRequest(with url: URL) -> URLRequest {
+            var request = URLRequest(url: url)
+            request.httpBody = payload
+            request.httpMethod = "POST"
+
+            if let topic = topic {
+                request.addValue(topic, forHTTPHeaderField: "apns-topic")
+            }
+
+            if let priority = priority {
+                request.addValue(String(priority.rawValue), forHTTPHeaderField: "apns-priority")
+            }
+
+            if let id = id {
+                request.addValue(id.uuidString, forHTTPHeaderField: "apns-id")
+            }
+
+            if let expirationDate = expirationDate {
+                request.addValue(String(Int(expirationDate.timeIntervalSince1970)), forHTTPHeaderField: "apns-expiration")
+            }
+
+            return request
         }
     }
 
-    struct Options {
-        var sessionConfiguration: URLSessionConfiguration = .default
-        var isDevelopment = false
-        var shouldUseAlternatePort = false
+    public struct Options {
+        public var sessionConfiguration: URLSessionConfiguration = .default
+        public var isDevelopment = false
+        public var shouldUseAlternatePort = false
 
-        init() {
+        public init() {
         }
 
-        fileprivate var port: Int {
+        var port: Int {
             return shouldUseAlternatePort ? 2197 : 443
         }
 
-        fileprivate var baseURL: URL {
+        var baseURL: URL {
             if isDevelopment {
                 return URL(string: "https://api.development.push.apple.com:\(port)/3/device/")!
             } else {
@@ -168,14 +178,21 @@ extension APNS {
         }
     }
 
-    struct Response {
-        var id: UUID
-        var status: Status
-        var apnsError: APNS.Error?
-        var timestamp: Date?
+    public struct Response {
+        public var id: UUID
+        public var status: Status
+        public var apnsError: APNS.Error?
+        public var timestamp: Date?
+
+        public init(id: UUID, status: Status, apnsError: APNS.Error?, timestamp: Date?) {
+            self.id = id
+            self.status = status
+            self.apnsError = apnsError
+            self.timestamp = timestamp
+        }
     }
 
-    enum Status: Int, CustomStringConvertible {
+    public enum Status: Int, CustomStringConvertible {
         case success = 200
         case badRequest = 400
         case badCertitficate = 403
@@ -201,7 +218,7 @@ extension APNS {
         }
     }
 
-    enum Error: String, Swift.Error, CustomStringConvertible {
+    public enum Error: String, Swift.Error, CustomStringConvertible {
         case payloadEmpty = "PayloadEmpty"
         case payloadTooLarge = "PayloadTooLarge"
         case badTopic = "BadTopic"
@@ -226,7 +243,7 @@ extension APNS {
         case serviceUnavailable = "ServiceUnavailable"
         case missingTopic = "MissingTopic"
 
-        var description: String {
+        public var description: String {
             switch self {
             case .payloadEmpty: return "The message payload was empty."
             case .payloadTooLarge: return "The message payload was too large. The maximum payload size is 4096 bytes."
