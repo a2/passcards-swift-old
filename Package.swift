@@ -10,5 +10,6 @@ let package = Package(
         .Package(url: "https://github.com/IBM-Swift/Kitura.git", majorVersion: 0, minor: 33),
         .Package(url: "https://github.com/IBM-Swift/HeliumLogger.git", majorVersion: 0, minor: 17),
         .Package(url: "https://github.com/OpenKitten/MongoKitten.git", majorVersion: 1, minor: 7),
+        .Package(url: "https://github.com/kylef/Commander.git", majorVersion: 0, minor: 5),
     ]
 )

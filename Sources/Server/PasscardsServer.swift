@@ -11,7 +11,7 @@ public struct ServerConfiguration {
     }
 }
 
-public class Server: ServerDelegate {
+public class PasscardsServer: ServerDelegate {
     let apns: APNS
     let database: MongoKitten.Database
     let passes: MongoKitten.Collection

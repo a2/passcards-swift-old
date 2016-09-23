@@ -2,7 +2,7 @@ import Foundation
 import MongoKitten
 import Kitura
 
-extension Server {
+extension PasscardsServer {
     func makeVanityRouter() -> Router {
         let router = Router()
         router.all(middleware: BodyParser())
@@ -36,7 +36,7 @@ extension Server {
     }
 
     func isAuthorized(request: RouterRequest) -> Bool {
-        return request.headers["Authorization"] != "Token \(updateToken)"
+        return request.headers["Authorization"] == "Token \(updateToken)"
     }
 
     func uploadPass(request: RouterRequest, response: RouterResponse, next: @escaping () -> Void) throws {

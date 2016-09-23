@@ -4,7 +4,7 @@ import Kitura
 import KituraNet
 import LoggerAPI
 
-extension Server {
+extension PasscardsServer {
     func makeWalletRouter() -> Router {
         let router = Router()
         router.all(middleware: BodyParser())
