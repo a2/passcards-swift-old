@@ -1,15 +1,23 @@
-# Basic Template
+# Passcards
 
-A basic vapor template for starting a new Vapor web application. If you're using vapor toolbox, you can use: `vapor new --template=basic`
+A simple Wallet (née Passbook) server. This is a Swift re-implementation of the original [Parse-backed version](https://github.com/a2/passcards-parse).
 
-## 📖 Documentation
+## Usage
 
-Visit the Vapor web framework's [documentation](http://docs.vapor.codes) for instructions on how to use this package.
+```sh
+$ swift build -c release
+$ .build/release/App \
+    --database "mongodb://localhost:27017/passcards" \
+    --cert "/path/to/cert.p12" \
+    --passphrase "secretz" \
+    --updateToken "moarsecretz" \
+    --port 6969
+```
 
-## 💧 Community
+## Author
 
-Join the welcoming community of fellow Vapor developers in [slack](http://vapor.team).
+Alexsander Akers, me@a2.io
 
-## 🔧 Compatibility
+## License
 
-This package has been tested on macOS and Ubuntu.
+Passcards is available under the MIT license. See the LICENSE file for more info.
