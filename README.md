@@ -8,8 +8,10 @@ A simple Wallet (née Passbook) server. This is a Swift re-implementation of the
 $ swift build -c release
 $ .build/release/App \
     --database "mongodb://localhost:27017/passcards" \
-    --cert "/path/to/cert.p12" \
+    --key "/path/to/key.p8" \
     --passphrase "secretz" \
+    --key-id "ABCDEFGHIJ"
+    --team-id "KLMNOPQRST"
     --updateToken "moarsecretz" \
     --port 6969
 ```
