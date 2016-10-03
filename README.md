@@ -12,7 +12,7 @@ $ .build/release/App \
     --passphrase "secretz" \
     --key-id "ABCDEFGHIJ"
     --team-id "KLMNOPQRST"
-    --updateToken "moarsecretz" \
+    --update-token "moarsecretz" \
     --port 6969
 ```
 
