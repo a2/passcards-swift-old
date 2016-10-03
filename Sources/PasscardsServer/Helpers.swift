@@ -17,7 +17,6 @@ let iso8601DateFormatter: DateFormatter = {
     return dateFormatter
 }()
 
-
 func makeId(length: Int = 10) -> String {
     var result = ""
     for _ in 0 ..< length {

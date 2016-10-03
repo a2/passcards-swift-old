@@ -1,6 +1,7 @@
 import Foundation
 import MongoKitten
 import Kitura
+import Shove
 
 extension PasscardsServer {
     func makeVanityRouter() -> Router {
@@ -121,12 +122,12 @@ extension PasscardsServer {
         try passes.update(matching: "vanityId" == vanityId, to: pass)
 
         let payload = "{\"aps\":{}}".data(using: .utf8)!
-        var notification = APNS.Notification(payload: payload)
+        var notification = PushNotification(payload: payload)
         notification.topic = pass["passTypeIdentifier"].stringValue
 
         for installation in try installations.find(matching: "passId" == pass["_id"]) {
             let deviceToken = installation["deviceToken"].string
-            apns.send(notification: notification, to: deviceToken)
+            shoveClient.send(notification: notification, to: deviceToken)
         }
 
         try response.status(.OK).end()
