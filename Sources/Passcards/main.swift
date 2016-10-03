@@ -11,7 +11,7 @@ let keyPath = Option("key", "", flag: "k", description: "Path to the APNS token 
 let passphrase = Option("passphrase", "", flag: "p", description: "Passphrase to decrypt the key file")
 let keyID = Option("key-id", "", flag: "i", description: "The APNS token key ID as prescribed by Apple")
 let teamID = Option("team-id", "", flag: "t", description: "The team ID for which the APNS token key was generated")
-let updateToken = Option("updateToken", "", flag: "u", description: "The authentication token to require for uploading or updating passes")
+let updateToken = Option("update-token", "", flag: "u", description: "The authentication token to require for uploading or updating passes")
 let port = Option("port", 8080, flag: "p", description: "The port on which to run the server")
 
 enum PasscardsError: Error {
@@ -23,14 +23,18 @@ enum PasscardsError: Error {
 }
 
 let main = command(databaseOption, keyPath, passphrase, keyID, teamID, updateToken, port) { databaseURI, keyPath, passphrase, keyID, teamID, updateToken, port in
-    guard let databaseURL = URL(string: databaseURI) else {
+    guard let urlComponents = URLComponents(string: databaseURI) else {
         throw PasscardsError.invalidDatabaseURI
     }
 
-    let serverURL = databaseURL.deletingLastPathComponent()
-    let database = databaseURL.lastPathComponent
+    let authentication: (String, String, String)?
+    if let user = urlComponents.user, let password = urlComponents.password {
+        authentication = (user, password, "admin")
+    } else {
+        authentication = nil
+    }
 
-    let server = try Server(serverURL as NSURL, automatically: false)
+    let server = try Server(at: urlComponents.host!, port: UInt16(urlComponents.port ?? 27017), using: authentication, automatically: false)
 
     let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
     guard let keyURL = URL(string: keyPath, relativeTo: cwd) else {
@@ -48,6 +52,11 @@ let main = command(databaseOption, keyPath, passphrase, keyID, teamID, updateTok
         try server.connect()
     } catch {
         throw PasscardsError.badDatabaseCredentials
+    }
+
+    var database = urlComponents.path
+    if database.hasPrefix("/") {
+        database = database.substring(from: database.index(after: database.startIndex))
     }
 
     let passcardsServer = PasscardsServer(database: server[database], shoveClient: shoveClient, updateToken: updateToken)
