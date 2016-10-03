@@ -6,7 +6,7 @@ A simple Wallet (née Passbook) server. This is a Swift re-implementation of the
 
 ```sh
 $ swift build -c release
-$ .build/release/App \
+$ .build/release/Passcards \
     --database "mongodb://localhost:27017/passcards" \
     --key "/path/to/key.p8" \
     --passphrase "secretz" \
