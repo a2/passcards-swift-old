@@ -59,16 +59,16 @@ let main = command(databaseOption, keyPath, passphrase, keyID, teamID, updateTok
         database = database.substring(from: database.index(after: database.startIndex))
     }
 
-    let fallbackRouter = Router()
-    fallbackRouter.all { request, response, next in
+    let passcardsServer = PasscardsServer(database: server[database], shoveClient: shoveClient, updateToken: updateToken)
+    let router = Router()
+    router.all("pass", middleware: passcardsServer.vanityRouter)
+    router.all("web", middleware: passcardsServer.walletRouter)
+    router.all { request, response, next in
         try response.send(status: .notFound).end()
     }
 
-    let passcardsServer = PasscardsServer(database: server[database], shoveClient: shoveClient, updateToken: updateToken)
-    passcardsServer.fallbackServerDelegate = fallbackRouter
-
     HeliumLogger.use()
-    Kitura.addHTTPServer(onPort: port, with: passcardsServer)
+    Kitura.addHTTPServer(onPort: port, with: router)
     Kitura.run()
 }
 
